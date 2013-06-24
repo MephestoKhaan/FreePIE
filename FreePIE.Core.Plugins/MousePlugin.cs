@@ -13,8 +13,8 @@ namespace FreePIE.Core.Plugins
     public class MousePlugin : Plugin
     {
         // Mouse position state variables
-        int DeltaXOut;
-        int DeltaYOut;
+        double DeltaXOut;
+        double DeltaYOut;
 
         DirectInput DirectInputInstance = new DirectInput();
         Mouse MouseDevice;
@@ -34,6 +34,9 @@ namespace FreePIE.Core.Plugins
         //-----------------------------------------------------------------------
         public override System.Action Start()
         {
+            //Mimic old Math.Round, see commit 0a2c62388b6674450267c85f00ceaef318571c59
+            Epsilon = 0.5;
+
             IntPtr handle = Process.GetCurrentProcess().MainWindowHandle;
 
             MouseDevice = new Mouse(DirectInputInstance);
@@ -97,31 +100,38 @@ namespace FreePIE.Core.Plugins
         public override void DoBeforeNextExecute()
         {
             // If a mouse command was given in the script, issue it all at once right here
-            if ((DeltaXOut != 0) || (DeltaYOut != 0))
+            if (Math.Abs(DeltaXOut) >= Epsilon || Math.Abs(DeltaYOut) >= Epsilon)
             {
-
                 var input = new MouseKeyIO.INPUT[1];
                 input[0].type = MouseKeyIO.INPUT_MOUSE;
-                input[0].mi = MouseInput(DeltaXOut, DeltaYOut, 0, 0, MouseKeyIO.MOUSEEVENTF_MOVE);
+                input[0].mi = MouseInput((int) DeltaXOut, (int) DeltaYOut, 0, 0, MouseKeyIO.MOUSEEVENTF_MOVE);
 
                 MouseKeyIO.SendInput(1, input, Marshal.SizeOf(input[0].GetType()));
 
                 // Reset the mouse values
-                DeltaXOut = 0;
-                DeltaYOut = 0;
+                if ((int) DeltaXOut != 0)
+                {
+                    DeltaXOut = DeltaXOut - (int) DeltaXOut;
+                }
+                if ((int) DeltaYOut != 0)
+                {
+                    DeltaYOut = DeltaYOut - (int) DeltaYOut;
+                }
             }
 
-            CurrentMouseState = null;  // flush the mouse state
+            CurrentMouseState = null; // flush the mouse state
 
             setButtonPressedStrategy.Do();
         }
 
+        public double Epsilon { get; set; }
+
         //-----------------------------------------------------------------------
-        public int DeltaX
+        public double DeltaX
         {
             set
             {
-                DeltaXOut = value;
+                DeltaXOut = DeltaXOut + value;
             }
 
             get
@@ -136,11 +146,11 @@ namespace FreePIE.Core.Plugins
         }
 
         //-----------------------------------------------------------------------
-        public int DeltaY
+        public double DeltaY
         {
             set
             {
-                DeltaYOut = value;
+                DeltaYOut = DeltaYOut + value;
             }
 
             get
@@ -250,16 +260,22 @@ namespace FreePIE.Core.Plugins
         //-----------------------------------------------------------------------
         public MouseGlobal(MousePlugin plugin) : base(plugin) { }
 
+        public double epsilon
+        {
+            get { return plugin.Epsilon; }
+            set { plugin.Epsilon = value; }
+        }
+
         public double deltaX
         {
             get { return plugin.DeltaX; }
-            set { plugin.DeltaX = (int) Math.Round(value); }
+            set { plugin.DeltaX = value; }
         }
 
         public double deltaY
         {
             get { return plugin.DeltaY; }
-            set { plugin.DeltaY = (int) Math.Round(value); }
+            set { plugin.DeltaY = value; }
         }
 
         public bool leftButton
